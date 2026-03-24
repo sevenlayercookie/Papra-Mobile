@@ -50,6 +50,10 @@ final class AppModel: ObservableObject {
         !apiToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    var isConnected: Bool {
+        currentKeyInfo != nil
+    }
+
     func saveConfiguration() {
         storedBaseURL = baseURL
         storedAPIToken = apiToken

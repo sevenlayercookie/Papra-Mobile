@@ -13,16 +13,23 @@ import UniformTypeIdentifiers
 struct ContentView: View {
     @StateObject private var model = AppModel()
     @State private var isImporterPresented = false
+    @State private var isSettingsPresented = false
     @State private var previewItem: PreviewItem?
     @State private var selectedDocumentID: String?
     @State private var documentPendingDeletion: Document?
     @State private var tagEditorTarget: TagEditorTarget?
 
     var body: some View {
-        NavigationSplitView {
-            sidebar
-        } detail: {
-            detailContent
+        Group {
+            if model.isConnected {
+                NavigationSplitView {
+                    sidebar
+                } detail: {
+                    detailContent
+                }
+            } else {
+                ConnectionGateView(model: model)
+            }
         }
         .task {
             await model.bootstrap()
@@ -53,6 +60,13 @@ struct ContentView: View {
                 model: model,
                 documentID: target.documentID
             )
+        }
+        .sheet(isPresented: $isSettingsPresented) {
+            SettingsView(model: model) {
+                model.disconnect()
+                selectedDocumentID = nil
+                isSettingsPresented = false
+            }
         }
         .confirmationDialog(
             "Delete this document?",
@@ -92,32 +106,33 @@ struct ContentView: View {
 
     private var sidebar: some View {
         List(selection: $selectedDocumentID) {
-            configurationSection
-            if model.isConfigured {
-                organizationSection
-                statusSection
-                documentsSection
-            }
+            organizationSection
+            statusSection
+            documentsSection
         }
         .navigationTitle("Papra")
         .toolbar {
-            if model.isConfigured {
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button {
-                        isImporterPresented = true
-                    } label: {
-                        Label("Upload", systemImage: "arrow.up.doc")
-                    }
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button {
+                    isImporterPresented = true
+                } label: {
+                    Label("Upload", systemImage: "arrow.up.doc")
+                }
 
-                    Button {
-                        Task {
-                            do {
-                                try await model.refreshDocuments()
-                            } catch { }
-                        }
-                    } label: {
-                        Label("Refresh", systemImage: "arrow.clockwise")
+                Button {
+                    Task {
+                        do {
+                            try await model.refreshDocuments()
+                        } catch { }
                     }
+                } label: {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                }
+
+                Button {
+                    isSettingsPresented = true
+                } label: {
+                    Label("Settings", systemImage: "gearshape")
                 }
             }
         }
@@ -134,33 +149,6 @@ struct ContentView: View {
             Task {
                 await model.loadDocumentDetail(documentID: newValue)
             }
-        }
-    }
-
-    private var configurationSection: some View {
-        Section("Connection") {
-            TextField("https://api.papra.app", text: $model.baseURL)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .keyboardType(.URL)
-                .disabled(model.currentKeyInfo != nil)
-
-            SecureField("API Token", text: $model.apiToken)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .disabled(model.currentKeyInfo != nil)
-
-            Button(model.currentKeyInfo == nil ? "Connect" : "Disconnect") {
-                if model.currentKeyInfo == nil {
-                    Task {
-                        await model.bootstrap()
-                    }
-                } else {
-                    model.disconnect()
-                    selectedDocumentID = nil
-                }
-            }
-            .disabled(model.currentKeyInfo == nil && model.apiToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
     }
 
@@ -292,6 +280,100 @@ struct ContentView: View {
                 systemImage: "doc.text",
                 description: Text("Select a document from the sidebar to inspect metadata, OCR content, and the original file.")
             )
+        }
+    }
+}
+
+private struct ConnectionGateView: View {
+    @ObservedObject var model: AppModel
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Connect to Papra")
+                        .font(.largeTitle.weight(.semibold))
+                    Text("Enter your API token and verify the connection before accessing documents.")
+                        .foregroundStyle(.secondary)
+                }
+
+                VStack(alignment: .leading, spacing: 16) {
+                    TextField("https://api.papra.app", text: $model.baseURL)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.URL)
+                        .textFieldStyle(.roundedBorder)
+
+                    SecureField("API Token", text: $model.apiToken)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .textFieldStyle(.roundedBorder)
+
+                    Button {
+                        Task {
+                            await model.bootstrap()
+                        }
+                    } label: {
+                        HStack {
+                            if model.isLoading {
+                                ProgressView()
+                                    .tint(.white)
+                            }
+                            Text("Connect")
+                                .fontWeight(.semibold)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(model.apiToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.isLoading)
+                }
+            }
+            .padding(24)
+            .frame(maxWidth: 520, maxHeight: .infinity, alignment: .center)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .navigationTitle("Papra")
+        }
+    }
+}
+
+private struct SettingsView: View {
+    @ObservedObject var model: AppModel
+    let onDisconnect: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Connection") {
+                    TextField("https://api.papra.app", text: $model.baseURL)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.URL)
+                        .disabled(model.isConnected)
+
+                    SecureField("API Token", text: $model.apiToken)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .disabled(model.isConnected)
+
+                    if let currentKeyInfo = model.currentKeyInfo {
+                        Label(currentKeyInfo.name, systemImage: "key")
+                    }
+
+                    Button("Disconnect", role: .destructive) {
+                        onDisconnect()
+                    }
+                }
+            }
+            .navigationTitle("Settings")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
         }
     }
 }
@@ -689,4 +771,3 @@ private extension Color {
         self.init(uiColor: UIColor(red: red, green: green, blue: blue, alpha: 1))
     }
 }
-
