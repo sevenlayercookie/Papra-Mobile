@@ -106,7 +106,6 @@ struct ContentView: View {
 
     private var sidebar: some View {
         List(selection: $selectedDocumentID) {
-            organizationSection
             statusSection
             documentsSection
         }
@@ -152,46 +151,15 @@ struct ContentView: View {
         }
     }
 
-    private var organizationSection: some View {
-        Section("Organization") {
-            if model.organizations.isEmpty {
-                Text("No organizations available.")
-                    .foregroundStyle(.secondary)
-            } else {
-                Picker("Workspace", selection: Binding(
-                    get: { model.selectedOrganizationID ?? "" },
-                    set: { newValue in
-                        Task { await model.selectOrganization(newValue) }
-                    }
-                )) {
-                    ForEach(model.organizations) { organization in
-                        Text(organization.name).tag(organization.id)
-                    }
-                }
-                .pickerStyle(.menu)
-            }
-
-            TextField("OCR Languages (optional)", text: $model.ocrLanguages)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-        }
-    }
-
     private var statusSection: some View {
         Section("Overview") {
-            if let currentKeyInfo = model.currentKeyInfo {
-                Label(currentKeyInfo.name, systemImage: "key")
-            }
-
             if let stats = model.stats {
-                LabeledContent("Documents", value: "\(stats.documentsCount)")
-                LabeledContent("Storage", value: ByteCountFormatter.string(fromByteCount: Int64(stats.documentsSize), countStyle: .file))
+                LabeledContent("Total Documents", value: "\(stats.documentsCount)")
+                LabeledContent("Total library size", value: ByteCountFormatter.string(fromByteCount: Int64(stats.documentsSize), countStyle: .file))
             }
 
-            if model.isLoading {
+            if model.isLoading && model.stats == nil {
                 ProgressView("Loading")
-            } else if model.lastRefresh > .distantPast {
-                LabeledContent("Updated", value: model.lastRefresh.formatted(date: .abbreviated, time: .shortened))
             }
         }
     }
@@ -345,6 +313,29 @@ private struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section("Organization") {
+                    if model.organizations.isEmpty {
+                        Text("No organizations available.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Picker("Workspace", selection: Binding(
+                            get: { model.selectedOrganizationID ?? "" },
+                            set: { newValue in
+                                Task { await model.selectOrganization(newValue) }
+                            }
+                        )) {
+                            ForEach(model.organizations) { organization in
+                                Text(organization.name).tag(organization.id)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    }
+
+                    TextField("OCR Languages (optional)", text: $model.ocrLanguages)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                }
+
                 Section("Connection") {
                     TextField("https://api.papra.app", text: $model.baseURL)
                         .textInputAutocapitalization(.never)
@@ -359,6 +350,10 @@ private struct SettingsView: View {
 
                     if let currentKeyInfo = model.currentKeyInfo {
                         Label(currentKeyInfo.name, systemImage: "key")
+                    }
+
+                    if model.lastRefresh > .distantPast {
+                        LabeledContent("Updated", value: model.lastRefresh.formatted(date: .abbreviated, time: .shortened))
                     }
 
                     Button("Disconnect", role: .destructive) {
