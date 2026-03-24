@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		8A1C210A2F731D3700C68913 /* Papra MobileShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 8A1C21012F731D3700C68913 /* Papra MobileShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		1EC73CDB2F731D3700C68913 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -21,12 +25,34 @@
 			remoteGlobalIDString = 1EC73CCC2F731D3600C68913;
 			remoteInfo = "Papra Mobile";
 		};
+		8A1C210B2F731D3700C68913 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1EC73CC52F731D3600C68913 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8A1C21002F731D3700C68913;
+			remoteInfo = "Papra MobileShareExtension";
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		8A1C210C2F731D3700C68913 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				8A1C210A2F731D3700C68913 /* Papra MobileShareExtension.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		1EC73CCD2F731D3600C68913 /* Papra Mobile.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Papra Mobile.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		1EC73CDA2F731D3700C68913 /* Papra MobileTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Papra MobileTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		1EC73CE42F731D3700C68913 /* Papra MobileUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Papra MobileUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		8A1C21012F731D3700C68913 /* Papra MobileShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "Papra MobileShareExtension.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -43,6 +69,11 @@
 		1EC73CE72F731D3700C68913 /* Papra MobileUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = "Papra MobileUITests";
+			sourceTree = "<group>";
+		};
+		8A1C21022F731D3700C68913 /* Papra MobileShareExtension */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "Papra MobileShareExtension";
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -69,6 +100,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		8A1C21052F731D3700C68913 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -78,6 +116,7 @@
 				1EC73CCF2F731D3600C68913 /* Papra Mobile */,
 				1EC73CDD2F731D3700C68913 /* Papra MobileTests */,
 				1EC73CE72F731D3700C68913 /* Papra MobileUITests */,
+				8A1C21022F731D3700C68913 /* Papra MobileShareExtension */,
 				1EC73CCE2F731D3600C68913 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -88,6 +127,7 @@
 				1EC73CCD2F731D3600C68913 /* Papra Mobile.app */,
 				1EC73CDA2F731D3700C68913 /* Papra MobileTests.xctest */,
 				1EC73CE42F731D3700C68913 /* Papra MobileUITests.xctest */,
+				8A1C21012F731D3700C68913 /* Papra MobileShareExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -102,10 +142,12 @@
 				1EC73CC92F731D3600C68913 /* Sources */,
 				1EC73CCA2F731D3600C68913 /* Frameworks */,
 				1EC73CCB2F731D3600C68913 /* Resources */,
+				8A1C210C2F731D3700C68913 /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				8A1C210D2F731D3700C68913 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				1EC73CCF2F731D3600C68913 /* Papra Mobile */,
@@ -163,6 +205,28 @@
 			productReference = 1EC73CE42F731D3700C68913 /* Papra MobileUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		8A1C21002F731D3700C68913 /* Papra MobileShareExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8A1C21122F731D3700C68913 /* Build configuration list for PBXNativeTarget "Papra MobileShareExtension" */;
+			buildPhases = (
+				8A1C21042F731D3700C68913 /* Sources */,
+				8A1C21052F731D3700C68913 /* Frameworks */,
+				8A1C21062F731D3700C68913 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				8A1C21022F731D3700C68913 /* Papra MobileShareExtension */,
+			);
+			name = "Papra MobileShareExtension";
+			packageProductDependencies = (
+			);
+			productName = "Papra MobileShareExtension";
+			productReference = 8A1C21012F731D3700C68913 /* Papra MobileShareExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -203,6 +267,7 @@
 				1EC73CCC2F731D3600C68913 /* Papra Mobile */,
 				1EC73CD92F731D3700C68913 /* Papra MobileTests */,
 				1EC73CE32F731D3700C68913 /* Papra MobileUITests */,
+				8A1C21002F731D3700C68913 /* Papra MobileShareExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -223,6 +288,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		1EC73CE22F731D3700C68913 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8A1C21062F731D3700C68913 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -253,6 +325,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		8A1C21042F731D3700C68913 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -265,6 +344,11 @@
 			isa = PBXTargetDependency;
 			target = 1EC73CCC2F731D3600C68913 /* Papra Mobile */;
 			targetProxy = 1EC73CE52F731D3700C68913 /* PBXContainerItemProxy */;
+		};
+		8A1C210D2F731D3700C68913 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8A1C21002F731D3700C68913 /* Papra MobileShareExtension */;
+			targetProxy = 8A1C210B2F731D3700C68913 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -395,6 +479,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "Papra Mobile/Papra Mobile.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 7PG8QB68KQ;
@@ -427,6 +512,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "Papra Mobile/Papra Mobile.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 7PG8QB68KQ;
@@ -538,6 +624,64 @@
 			};
 			name = Release;
 		};
+		8A1C21102F731D3700C68913 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = "Papra MobileShareExtension/Papra MobileShareExtension.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 7PG8QB68KQ;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Papra MobileShareExtension-Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "sevenlayercookie.Papra-Mobile.ShareExtension";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		8A1C21112F731D3700C68913 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = "Papra MobileShareExtension/Papra MobileShareExtension.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 7PG8QB68KQ;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Papra MobileShareExtension-Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "sevenlayercookie.Papra-Mobile.ShareExtension";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -573,6 +717,15 @@
 			buildConfigurations = (
 				1EC73CF52F731D3700C68913 /* Debug */,
 				1EC73CF62F731D3700C68913 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8A1C21122F731D3700C68913 /* Build configuration list for PBXNativeTarget "Papra MobileShareExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8A1C21102F731D3700C68913 /* Debug */,
+				8A1C21112F731D3700C68913 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

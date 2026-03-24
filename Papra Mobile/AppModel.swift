@@ -11,9 +11,9 @@ import SwiftUI
 
 @MainActor
 final class AppModel: ObservableObject {
-    @AppStorage("papra.baseURL") private var storedBaseURL = ""
-    @AppStorage("papra.apiToken") private var storedAPIToken = ""
-    @AppStorage("papra.organizationID") private var storedOrganizationID = ""
+    @AppStorage(PapraSharedSettings.baseURLKey, store: PapraSharedSettings.sharedDefaults) private var storedBaseURL = ""
+    @AppStorage(PapraSharedSettings.apiTokenKey, store: PapraSharedSettings.sharedDefaults) private var storedAPIToken = ""
+    @AppStorage(PapraSharedSettings.organizationIDKey, store: PapraSharedSettings.sharedDefaults) private var storedOrganizationID = ""
 
     @Published var baseURL = ""
     @Published var apiToken = ""
