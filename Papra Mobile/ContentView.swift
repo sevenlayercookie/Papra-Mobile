@@ -109,8 +109,18 @@ struct ContentView: View {
             statusSection
             documentsSection
         }
-        .navigationTitle("Papra")
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                HStack(spacing: 10) {
+                    PapraBrandMark(size: 28)
+
+                    Text("Papra")
+                        .font(.headline.weight(.semibold))
+                }
+            }
+
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button {
                     isImporterPresented = true
@@ -258,11 +268,15 @@ private struct ConnectionGateView: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 24) {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 18) {
+                    PapraBrandMark(size: 88)
+
+                    VStack(alignment: .leading, spacing: 10) {
                     Text("Connect to Papra")
                         .font(.largeTitle.weight(.semibold))
                     Text("Enter your API token and verify the connection before accessing documents.")
                         .foregroundStyle(.secondary)
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 16) {
@@ -313,6 +327,21 @@ private struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    HStack(spacing: 16) {
+                        PapraBrandMark(size: 52)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Papra Mobile")
+                                .font(.headline)
+                            Text("Connection, organization, and library settings")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 6)
+                }
+
                 Section("Organization") {
                     if model.organizations.isEmpty {
                         Text("No organizations available.")
@@ -376,6 +405,17 @@ private struct SettingsView: View {
 private struct TagEditorTarget: Identifiable {
     let documentID: String
     var id: String { documentID }
+}
+
+private struct PapraBrandMark: View {
+    let size: CGFloat
+
+    var body: some View {
+        Image("PapraBrandTransparent")
+            .resizable()
+            .aspectRatio(1, contentMode: .fit)
+            .frame(width: size, height: size)
+    }
 }
 
 private struct PreviewItem: Identifiable {
