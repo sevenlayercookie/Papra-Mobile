@@ -119,6 +119,17 @@ final class AppModel: ObservableObject {
         }
     }
 
+    func refreshSidebarContent() async {
+        do {
+            try await refreshDocuments()
+            if !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                await performSearch()
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     func selectOrganization(_ organizationID: String) async {
         selectedOrganizationID = organizationID
         saveConfiguration()
@@ -171,6 +182,11 @@ final class AppModel: ObservableObject {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    func refreshSelectedDocument() async {
+        guard let documentID = selectedDocument?.id else { return }
+        await loadDocumentDetail(documentID: documentID)
     }
 
     func upload(fileURL: URL) async {

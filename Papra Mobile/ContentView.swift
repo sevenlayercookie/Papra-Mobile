@@ -130,9 +130,7 @@ struct ContentView: View {
 
                 Button {
                     Task {
-                        do {
-                            try await model.refreshDocuments()
-                        } catch { }
+                        await model.refreshSidebarContent()
                     }
                 } label: {
                     Label("Refresh", systemImage: "arrow.clockwise")
@@ -158,6 +156,9 @@ struct ContentView: View {
             Task {
                 await model.loadDocumentDetail(documentID: newValue)
             }
+        }
+        .refreshable {
+            await model.refreshSidebarContent()
         }
     }
 
@@ -467,6 +468,9 @@ private struct DocumentDetailView: View {
             }
             .padding(24)
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .refreshable {
+            await onRefresh()
         }
         .navigationTitle(document.name)
         .toolbar {
