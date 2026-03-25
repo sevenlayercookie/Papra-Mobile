@@ -6,15 +6,21 @@
 //
 
 import QuickLook
+import CoreTransferable
+import PhotosUI
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
+import VisionKit
 
 struct ContentView: View {
     @StateObject private var model = AppModel()
     @State private var isImporterPresented = false
+    @State private var isDocumentScannerPresented = false
+    @State private var isPhotoPickerPresented = false
     @State private var isSettingsPresented = false
     @State private var previewItem: PreviewItem?
+    @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var selectedDocumentID: String?
     @State private var documentPendingDeletion: Document?
     @State private var tagEditorTarget: TagEditorTarget?
@@ -44,6 +50,13 @@ struct ContentView: View {
                 await model.upload(fileURL: fileURL)
             }
         }
+        .photosPicker(
+            isPresented: $isPhotoPickerPresented,
+            selection: $selectedPhotoItem,
+            matching: .images,
+            preferredItemEncoding: .current,
+            photoLibrary: .shared()
+        )
         .alert("Papra", isPresented: Binding(
             get: { model.errorMessage != nil },
             set: { _ in model.clearError() }
@@ -54,6 +67,20 @@ struct ContentView: View {
         }
         .sheet(item: $previewItem) { previewItem in
             DocumentPreviewSheet(url: previewItem.url)
+        }
+        .sheet(isPresented: $isDocumentScannerPresented) {
+            DocumentScannerSheet { result in
+                isDocumentScannerPresented = false
+
+                switch result {
+                case let .success(fileURL):
+                    Task {
+                        await model.upload(fileURL: fileURL)
+                    }
+                case let .failure(error):
+                    model.errorMessage = error.localizedDescription
+                }
+            }
         }
         .sheet(item: $tagEditorTarget) { target in
             TagEditorSheet(
@@ -102,6 +129,13 @@ struct ContentView: View {
                 model.selectedDocument = nil
             }
         }
+        .onChange(of: selectedPhotoItem) { _, newItem in
+            guard let newItem else { return }
+            Task {
+                await importPhoto(from: newItem)
+                selectedPhotoItem = nil
+            }
+        }
     }
 
     private var sidebar: some View {
@@ -122,8 +156,28 @@ struct ContentView: View {
             }
 
             ToolbarItemGroup(placement: .topBarTrailing) {
-                Button {
-                    isImporterPresented = true
+                Menu {
+                    Button {
+                        isImporterPresented = true
+                    } label: {
+                        Label("Browse Files", systemImage: "folder")
+                    }
+
+                    Button {
+                        isPhotoPickerPresented = true
+                    } label: {
+                        Label("Choose Photo", systemImage: "photo.on.rectangle")
+                    }
+
+                    Button {
+                        if VNDocumentCameraViewController.isSupported {
+                            isDocumentScannerPresented = true
+                        } else {
+                            model.errorMessage = "Document scanning is not available on this device."
+                        }
+                    } label: {
+                        Label("Scan Document", systemImage: "camera.viewfinder")
+                    }
                 } label: {
                     Label("Upload", systemImage: "arrow.up.doc")
                 }
@@ -259,6 +313,17 @@ struct ContentView: View {
                 systemImage: "doc.text",
                 description: Text("Select a document from the sidebar to inspect metadata, OCR content, and the original file.")
             )
+        }
+    }
+
+    private func importPhoto(from item: PhotosPickerItem) async {
+        do {
+            guard let pickedImage = try await item.loadTransferable(type: PickedImageFile.self) else {
+                return
+            }
+            await model.upload(fileURL: pickedImage.url)
+        } catch {
+            model.errorMessage = error.localizedDescription
         }
     }
 }
@@ -422,6 +487,89 @@ private struct PapraBrandMark: View {
 private struct PreviewItem: Identifiable {
     let id = UUID()
     let url: URL
+}
+
+private struct PickedImageFile: Transferable {
+    let url: URL
+
+    static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(importedContentType: .image) { received in
+            let fileManager = FileManager.default
+            let pathExtension = received.file.pathExtension.isEmpty ? "jpg" : received.file.pathExtension
+            let destinationURL = fileManager.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .appendingPathExtension(pathExtension)
+
+            if fileManager.fileExists(atPath: destinationURL.path) {
+                try fileManager.removeItem(at: destinationURL)
+            }
+
+            try fileManager.copyItem(at: received.file, to: destinationURL)
+            return Self(url: destinationURL)
+        }
+    }
+}
+
+private struct DocumentScannerSheet: UIViewControllerRepresentable {
+    let onComplete: (Result<URL, Error>) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onComplete: onComplete)
+    }
+
+    func makeUIViewController(context: Context) -> VNDocumentCameraViewController {
+        let controller = VNDocumentCameraViewController()
+        controller.delegate = context.coordinator
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: VNDocumentCameraViewController, context: Context) {}
+
+    final class Coordinator: NSObject, VNDocumentCameraViewControllerDelegate {
+        private let onComplete: (Result<URL, Error>) -> Void
+
+        init(onComplete: @escaping (Result<URL, Error>) -> Void) {
+            self.onComplete = onComplete
+        }
+
+        func documentCameraViewController(_ controller: VNDocumentCameraViewController, didFinishWith scan: VNDocumentCameraScan) {
+            controller.dismiss(animated: true)
+
+            do {
+                let fileURL = try makePDF(from: scan)
+                onComplete(.success(fileURL))
+            } catch {
+                onComplete(.failure(error))
+            }
+        }
+
+        func documentCameraViewControllerDidCancel(_ controller: VNDocumentCameraViewController) {
+            controller.dismiss(animated: true)
+        }
+
+        func documentCameraViewController(_ controller: VNDocumentCameraViewController, didFailWithError error: Error) {
+            controller.dismiss(animated: true)
+            onComplete(.failure(error))
+        }
+
+        private func makePDF(from scan: VNDocumentCameraScan) throws -> URL {
+            let renderer = UIGraphicsPDFRenderer(bounds: CGRect(x: 0, y: 0, width: 612, height: 792))
+            let fileURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("scan-\(UUID().uuidString)")
+                .appendingPathExtension("pdf")
+
+            try renderer.writePDF(to: fileURL) { context in
+                for pageIndex in 0 ..< scan.pageCount {
+                    let image = scan.imageOfPage(at: pageIndex)
+                    let pageRect = CGRect(origin: .zero, size: image.size)
+                    context.beginPage(withBounds: pageRect, pageInfo: [:])
+                    image.draw(in: pageRect)
+                }
+            }
+
+            return fileURL
+        }
+    }
 }
 
 private struct DocumentRow: View {
