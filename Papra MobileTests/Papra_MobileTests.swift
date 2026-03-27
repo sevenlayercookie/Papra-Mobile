@@ -150,5 +150,6 @@ struct Papra_MobileTests {
     @Test func normalizedDocumentNameTrimsWhitespaceAndNewlines() {
         #expect(AppModel.normalizedDocumentName("  Quarterly Report \n") == "Quarterly Report")
         #expect(AppModel.normalizedDocumentName(" \n\t ") == "")
+        #expect(AppModel.normalizedDocumentName("\tBudget   2026\t") == "Budget   2026")
     }
 }
