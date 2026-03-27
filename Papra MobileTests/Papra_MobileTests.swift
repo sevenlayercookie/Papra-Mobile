@@ -47,4 +47,23 @@ struct Papra_MobileTests {
         #expect(response.document.tags.count == 1)
         #expect(response.document.updatedAt != nil)
     }
+
+    @Test func apiErrorExplainsAuthenticationFailure() {
+        let error = PapraAPIError.httpStatus(
+            401,
+            "Authentication failed for /api/api-keys/current. Check that the API token is valid."
+        )
+
+        #expect(error.errorDescription == "Authentication failed for /api/api-keys/current. Check that the API token is valid.")
+    }
+
+    @Test func apiErrorPreservesDecodeContext() {
+        let error = PapraAPIError.decoding(
+            "Papra returned unexpected data for /api/organizations while decoding OrganizationsResponse. Missing key 'organizations'."
+        )
+
+        #expect(error.errorDescription?.contains("/api/organizations") == true)
+        #expect(error.errorDescription?.contains("OrganizationsResponse") == true)
+        #expect(error.errorDescription?.contains("Missing key 'organizations'") == true)
+    }
 }

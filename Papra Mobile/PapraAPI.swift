@@ -13,6 +13,8 @@ enum PapraAPIError: LocalizedError {
     case invalidResponse
     case httpStatus(Int, String)
     case missingFileName
+    case transport(String)
+    case decoding(String)
 
     var errorDescription: String? {
         switch self {
@@ -24,6 +26,8 @@ enum PapraAPIError: LocalizedError {
             return message.isEmpty ? "Request failed with status \(code)." : message
         case .missingFileName:
             return "Choose a file with a valid name."
+        case let .transport(message), let .decoding(message):
+            return message
         }
     }
 }
@@ -50,6 +54,11 @@ struct PapraAPI {
         decoder.dateDecodingStrategy = .iso8601
         return decoder
     }()
+
+    private func endpointDescription(for request: URLRequest) -> String {
+        guard let url = request.url else { return "the server" }
+        return url.path.isEmpty ? (url.host ?? url.absoluteString) : url.path
+    }
 
     private func makeURL(path: String, queryItems: [URLQueryItem] = []) throws -> URL {
         let rawBaseURL = configuration.trimmedBaseURL.isEmpty ? "https://api.papra.app" : configuration.trimmedBaseURL
@@ -99,24 +108,155 @@ struct PapraAPI {
         return ""
     }
 
+    private func truncatedResponsePreview(from data: Data) -> String? {
+        guard let rawText = String(data: data, encoding: .utf8) else { return nil }
+        let trimmedText = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedText.isEmpty else { return nil }
+
+        let singleLineText = trimmedText.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        let preview = String(singleLineText.prefix(160))
+        return preview == singleLineText ? preview : "\(preview)..."
+    }
+
+    private func describeHTTPStatus(_ statusCode: Int, responseData: Data, request: URLRequest) -> String {
+        let endpoint = endpointDescription(for: request)
+        let responseMessage = decodeErrorMessage(from: responseData)
+
+        switch statusCode {
+        case 401:
+            return "Authentication failed for \(endpoint). Check that the API token is valid."
+        case 403:
+            return "Access was denied for \(endpoint). The API token may be missing the required Papra permissions."
+        case 404:
+            return "Papra could not find \(endpoint). Check the base URL and selected organization."
+        case 502, 503, 504:
+            return "Papra is currently unavailable for \(endpoint) (status \(statusCode)). Try again in a moment."
+        default:
+            if !responseMessage.isEmpty {
+                return "Request to \(endpoint) failed with status \(statusCode): \(responseMessage)"
+            }
+            if let preview = truncatedResponsePreview(from: responseData) {
+                return "Request to \(endpoint) failed with status \(statusCode). Server response: \(preview)"
+            }
+            return "Request to \(endpoint) failed with status \(statusCode)."
+        }
+    }
+
+    private func describeTransportError(_ error: Error, request: URLRequest) -> PapraAPIError {
+        let endpoint = request.url?.host ?? endpointDescription(for: request)
+
+        guard let urlError = error as? URLError else {
+            return .transport(error.localizedDescription)
+        }
+
+        switch urlError.code {
+        case .notConnectedToInternet:
+            return .transport("No internet connection. Check your network and try again.")
+        case .timedOut:
+            return .transport("The request to \(endpoint) timed out. Check the server and try again.")
+        case .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed:
+            return .transport("Could not reach \(endpoint). Check the Papra base URL and server availability.")
+        case .secureConnectionFailed, .serverCertificateHasBadDate, .serverCertificateUntrusted, .serverCertificateHasUnknownRoot, .clientCertificateRejected, .clientCertificateRequired:
+            return .transport("A secure connection to \(endpoint) could not be established. Check the server's TLS configuration.")
+        default:
+            return .transport(urlError.localizedDescription)
+        }
+    }
+
+    private func describeDecodingError<T: Decodable>(
+        _ error: Error,
+        responseData: Data,
+        request: URLRequest,
+        response: HTTPURLResponse?,
+        expectedType: T.Type
+    ) -> PapraAPIError {
+        let endpoint = endpointDescription(for: request)
+        let typeName = String(describing: expectedType)
+        let preview = truncatedResponsePreview(from: responseData)
+        let contentType = response?.value(forHTTPHeaderField: "Content-Type") ?? response?.mimeType
+
+        if let decodingError = error as? DecodingError {
+            let detail: String
+            switch decodingError {
+            case let .keyNotFound(key, context):
+                let codingPath = context.codingPath.map(\.stringValue).joined(separator: ".")
+                detail = codingPath.isEmpty
+                    ? "Missing key '\(key.stringValue)'"
+                    : "Missing key '\(key.stringValue)' at \(codingPath)"
+            case let .typeMismatch(_, context), let .valueNotFound(_, context), let .dataCorrupted(context):
+                detail = context.debugDescription
+            @unknown default:
+                detail = decodingError.localizedDescription
+            }
+
+            if let preview {
+                return .decoding("Papra returned unexpected data for \(endpoint) while decoding \(typeName). \(detail). Response preview: \(preview)")
+            }
+
+            return .decoding("Papra returned unexpected data for \(endpoint) while decoding \(typeName). \(detail).")
+        }
+
+        if let contentType, !contentType.localizedCaseInsensitiveContains("json"), let preview {
+            return .decoding("Papra returned \(contentType) for \(endpoint) instead of JSON. Response preview: \(preview)")
+        }
+
+        if let preview {
+            return .decoding("Papra returned unreadable data for \(endpoint) while decoding \(typeName). Response preview: \(preview)")
+        }
+
+        return .decoding("Papra returned unreadable data for \(endpoint) while decoding \(typeName).")
+    }
+
     private func send<T: Decodable>(_ request: URLRequest, as type: T.Type) async throws -> T {
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let data: Data
+        let response: URLResponse
+
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch {
+            throw describeTransportError(error, request: request)
+        }
+
         guard let httpResponse = response as? HTTPURLResponse else {
             throw PapraAPIError.invalidResponse
         }
         guard (200 ..< 300).contains(httpResponse.statusCode) else {
-            throw PapraAPIError.httpStatus(httpResponse.statusCode, decodeErrorMessage(from: data))
+            throw PapraAPIError.httpStatus(
+                httpResponse.statusCode,
+                describeHTTPStatus(httpResponse.statusCode, responseData: data, request: request)
+            )
         }
-        return try decoder.decode(T.self, from: data)
+        do {
+            return try decoder.decode(T.self, from: data)
+        } catch {
+            throw describeDecodingError(
+                error,
+                responseData: data,
+                request: request,
+                response: httpResponse,
+                expectedType: type
+            )
+        }
     }
 
     private func sendWithoutBodyResponse(_ request: URLRequest) async throws {
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let data: Data
+        let response: URLResponse
+
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch {
+            throw describeTransportError(error, request: request)
+        }
+
         guard let httpResponse = response as? HTTPURLResponse else {
             throw PapraAPIError.invalidResponse
         }
         guard (200 ..< 300).contains(httpResponse.statusCode) else {
-            throw PapraAPIError.httpStatus(httpResponse.statusCode, decodeErrorMessage(from: data))
+            throw PapraAPIError.httpStatus(
+                httpResponse.statusCode,
+                describeHTTPStatus(httpResponse.statusCode, responseData: data, request: request)
+            )
         }
     }
 
@@ -205,12 +345,23 @@ struct PapraAPI {
             path: "/api/organizations/\(organizationID)/documents/\(document.id)/file",
             contentType: nil
         )
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let data: Data
+        let response: URLResponse
+
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch {
+            throw describeTransportError(error, request: request)
+        }
+
         guard let httpResponse = response as? HTTPURLResponse else {
             throw PapraAPIError.invalidResponse
         }
         guard (200 ..< 300).contains(httpResponse.statusCode) else {
-            throw PapraAPIError.httpStatus(httpResponse.statusCode, decodeErrorMessage(from: data))
+            throw PapraAPIError.httpStatus(
+                httpResponse.statusCode,
+                describeHTTPStatus(httpResponse.statusCode, responseData: data, request: request)
+            )
         }
 
         let fallbackExtension = UTType(mimeType: document.mimeType ?? "")?.preferredFilenameExtension

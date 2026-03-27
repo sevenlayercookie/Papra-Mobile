@@ -228,13 +228,93 @@ private struct PapraShareUploader {
             mimeType: mimeType
         )
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let data: Data
+        let response: URLResponse
+
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch {
+            throw describeTransportError(error, request: request)
+        }
+
         guard let httpResponse = response as? HTTPURLResponse else {
             throw ShareUploadError.invalidServerResponse
         }
         guard (200 ..< 300).contains(httpResponse.statusCode) else {
-            let message = String(data: data, encoding: .utf8) ?? "Upload failed with status \(httpResponse.statusCode)."
-            throw ShareUploadError.serverError(message)
+            throw ShareUploadError.serverError(
+                describeHTTPStatus(httpResponse.statusCode, data: data, request: request)
+            )
+        }
+    }
+
+    private func responsePreview(from data: Data) -> String? {
+        guard let rawText = String(data: data, encoding: .utf8) else { return nil }
+        let trimmedText = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedText.isEmpty else { return nil }
+
+        let singleLineText = trimmedText.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        let preview = String(singleLineText.prefix(160))
+        return preview == singleLineText ? preview : "\(preview)..."
+    }
+
+    private func decodeErrorMessage(from data: Data) -> String {
+        guard
+            let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            return ""
+        }
+
+        for key in ["message", "error", "detail"] {
+            if let value = object[key] as? String, !value.isEmpty {
+                return value
+            }
+        }
+
+        return ""
+    }
+
+    private func describeHTTPStatus(_ statusCode: Int, data: Data, request: URLRequest) -> String {
+        let endpoint = request.url?.path ?? "the upload endpoint"
+        let responseMessage = decodeErrorMessage(from: data)
+
+        switch statusCode {
+        case 401:
+            return "Authentication failed for \(endpoint). Reconnect Papra Mobile and verify the API token."
+        case 403:
+            return "Upload was denied for \(endpoint). The API token may be missing document permissions."
+        case 404:
+            return "Papra could not find \(endpoint). Check the selected organization and base URL."
+        case 502, 503, 504:
+            return "Papra is currently unavailable for \(endpoint) (status \(statusCode)). Try again in a moment."
+        default:
+            if !responseMessage.isEmpty {
+                return "Upload failed for \(endpoint) with status \(statusCode): \(responseMessage)"
+            }
+            if let preview = responsePreview(from: data) {
+                return "Upload failed for \(endpoint) with status \(statusCode). Server response: \(preview)"
+            }
+            return "Upload failed for \(endpoint) with status \(statusCode)."
+        }
+    }
+
+    private func describeTransportError(_ error: Error, request: URLRequest) -> ShareUploadError {
+        let host = request.url?.host ?? "the server"
+
+        guard let urlError = error as? URLError else {
+            return .transport(error.localizedDescription)
+        }
+
+        switch urlError.code {
+        case .notConnectedToInternet:
+            return .transport("No internet connection. Check your network and try again.")
+        case .timedOut:
+            return .transport("The request to \(host) timed out. Check the server and try again.")
+        case .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed:
+            return .transport("Could not reach \(host). Check the Papra base URL and server availability.")
+        case .secureConnectionFailed, .serverCertificateHasBadDate, .serverCertificateUntrusted, .serverCertificateHasUnknownRoot, .clientCertificateRejected, .clientCertificateRequired:
+            return .transport("A secure connection to \(host) could not be established. Check the server's TLS configuration.")
+        default:
+            return .transport(urlError.localizedDescription)
         }
     }
 
@@ -262,6 +342,7 @@ private enum ShareUploadError: LocalizedError {
     case invalidConfiguration
     case invalidServerResponse
     case serverError(String)
+    case transport(String)
 
     var errorDescription: String? {
         switch self {
@@ -269,7 +350,7 @@ private enum ShareUploadError: LocalizedError {
             return "Papra connection settings are missing or invalid."
         case .invalidServerResponse:
             return "Papra returned an invalid response."
-        case let .serverError(message):
+        case let .serverError(message), let .transport(message):
             return message
         }
     }
