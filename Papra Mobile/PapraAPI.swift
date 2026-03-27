@@ -36,6 +36,7 @@ struct PapraConfiguration: Equatable {
     var baseURL: String
     var apiToken: String
     var organizationID: String?
+    var customHeaders: [CustomHeader]
 
     var trimmedBaseURL: String {
         baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -89,6 +90,12 @@ struct PapraAPI {
         request.setValue("Bearer \(configuration.trimmedToken)", forHTTPHeaderField: "Authorization")
         if let contentType {
             request.setValue(contentType, forHTTPHeaderField: "Content-Type")
+        }
+        for header in configuration.customHeaders {
+            let name = header.trimmedName
+            let value = header.trimmedValue
+            guard !name.isEmpty, !value.isEmpty else { continue }
+            request.setValue(value, forHTTPHeaderField: name)
         }
         return request
     }
@@ -280,6 +287,11 @@ struct PapraAPI {
         return try await send(request, as: OrganizationsResponse.self).organizations
     }
 
+    func currentUser() async throws -> CurrentUser {
+        let request = try makeRequest(path: "/api/users/me")
+        return try await send(request, as: CurrentUserResponse.self).user
+    }
+
     func documents(organizationID: String) async throws -> [Document] {
         let request = try makeRequest(
             path: "/api/organizations/\(organizationID)/documents",
@@ -310,11 +322,42 @@ struct PapraAPI {
         return try await send(request, as: OrganizationStatsResponse.self).organizationStats
     }
 
+    func customPropertyDefinitions(organizationID: String) async throws -> [PropertyDefinition] {
+        let request = try makeRequest(path: "/api/organizations/\(organizationID)/custom-properties")
+        return try await send(request, as: PropertyDefinitionsResponse.self).propertyDefinitions
+    }
+
     func uploadDocument(
         organizationID: String,
         fileURL: URL,
         ocrLanguages: String?
     ) async throws {
+        let request = try makeDocumentUploadRequest(
+            organizationID: organizationID,
+            fileURL: fileURL,
+            ocrLanguages: ocrLanguages
+        )
+        try await sendWithoutBodyResponse(request)
+    }
+
+    func uploadDocumentReturningDocument(
+        organizationID: String,
+        fileURL: URL,
+        ocrLanguages: String?
+    ) async throws -> Document {
+        let request = try makeDocumentUploadRequest(
+            organizationID: organizationID,
+            fileURL: fileURL,
+            ocrLanguages: ocrLanguages
+        )
+        return try await send(request, as: DocumentResponse.self).document
+    }
+
+    private func makeDocumentUploadRequest(
+        organizationID: String,
+        fileURL: URL,
+        ocrLanguages: String?
+    ) throws -> URLRequest {
         let fileName = fileURL.lastPathComponent
         guard !fileName.isEmpty else {
             throw PapraAPIError.missingFileName
@@ -336,8 +379,7 @@ struct PapraAPI {
             mimeType: mimeType,
             ocrLanguages: ocrLanguages?.trimmingCharacters(in: .whitespacesAndNewlines)
         )
-
-        try await sendWithoutBodyResponse(request)
+        return request
     }
 
     func downloadDocumentFile(organizationID: String, document: Document) async throws -> URL {
@@ -382,6 +424,35 @@ struct PapraAPI {
             contentType: nil
         )
         try await sendWithoutBodyResponse(request)
+    }
+
+    func renameDocument(
+        organizationID: String,
+        documentID: String,
+        name: String
+    ) async throws -> Document {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let jsonRequest = try makeJSONRequest(
+            path: "/api/organizations/\(organizationID)/documents/\(documentID)",
+            method: "PATCH",
+            body: DocumentUpdatePayload(name: trimmedName, content: nil)
+        )
+
+        do {
+            return try await send(jsonRequest, as: DocumentResponse.self).document
+        } catch let PapraAPIError.httpStatus(statusCode, _) where statusCode == 400 {
+            let boundary = UUID().uuidString
+            var multipartRequest = try makeRequest(
+                path: "/api/organizations/\(organizationID)/documents/\(documentID)",
+                method: "PATCH",
+                contentType: "multipart/form-data; boundary=\(boundary)"
+            )
+            multipartRequest.httpBody = makeMultipartFieldsBody(
+                boundary: boundary,
+                fields: [("name", trimmedName)]
+            )
+            return try await send(multipartRequest, as: DocumentResponse.self).document
+        }
     }
 
     func tags(organizationID: String) async throws -> [DocumentTag] {
@@ -487,6 +558,23 @@ struct PapraAPI {
 
         return body
     }
+
+    private func makeMultipartFieldsBody(
+        boundary: String,
+        fields: [(name: String, value: String)]
+    ) -> Data {
+        var body = Data()
+        let lineBreak = "\r\n"
+
+        for field in fields where !field.value.isEmpty {
+            body.append("--\(boundary)\(lineBreak)")
+            body.append("Content-Disposition: form-data; name=\"\(field.name)\"\(lineBreak)\(lineBreak)")
+            body.append("\(field.value)\(lineBreak)")
+        }
+
+        body.append("--\(boundary)--\(lineBreak)")
+        return body
+    }
 }
 
 private extension Data {
@@ -509,4 +597,9 @@ private struct DocumentTagAssignmentPayload: Encodable {
     enum CodingKeys: String, CodingKey {
         case tagID = "tagId"
     }
+}
+
+private struct DocumentUpdatePayload: Encodable {
+    let name: String?
+    let content: String?
 }

@@ -101,12 +101,14 @@ private struct PapraShareConfiguration {
     let baseURL: String
     let apiToken: String
     let organizationID: String
+    let customHeaders: [PapraShareHeader]
 
     static func load() -> PapraShareConfiguration? {
         let defaults = UserDefaults(suiteName: PapraSharedSettings.appGroupIdentifier)
         let baseURL = defaults?.string(forKey: PapraSharedSettings.baseURLKey) ?? ""
         let apiToken = defaults?.string(forKey: PapraSharedSettings.apiTokenKey) ?? ""
         let organizationID = defaults?.string(forKey: PapraSharedSettings.organizationIDKey) ?? ""
+        let customHeaders = decodeHeaders(from: defaults?.string(forKey: PapraSharedSettings.customHeadersKey) ?? "[]")
 
         guard !apiToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               !organizationID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -116,8 +118,14 @@ private struct PapraShareConfiguration {
         return PapraShareConfiguration(
             baseURL: baseURL,
             apiToken: apiToken,
-            organizationID: organizationID
+            organizationID: organizationID,
+            customHeaders: customHeaders
         )
+    }
+
+    private static func decodeHeaders(from rawValue: String) -> [PapraShareHeader] {
+        guard let data = rawValue.data(using: .utf8) else { return [] }
+        return (try? JSONDecoder().decode([PapraShareHeader].self, from: data)) ?? []
     }
 }
 
@@ -218,6 +226,12 @@ private struct PapraShareUploader {
         request.httpMethod = "POST"
         request.setValue("Bearer \(configuration.apiToken)", forHTTPHeaderField: "Authorization")
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        for header in configuration.customHeaders {
+            let name = header.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            let value = header.value.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty, !value.isEmpty else { continue }
+            request.setValue(value, forHTTPHeaderField: name)
+        }
 
         let fileData = try Data(contentsOf: fileURL)
         let mimeType = UTType(filenameExtension: fileURL.pathExtension)?.preferredMIMEType ?? "application/octet-stream"
@@ -369,4 +383,10 @@ private enum PapraSharedSettings {
     static let baseURLKey = "papra.baseURL"
     static let apiTokenKey = "papra.apiToken"
     static let organizationIDKey = "papra.organizationID"
+    static let customHeadersKey = "papra.customHeaders"
+}
+
+private struct PapraShareHeader: Decodable {
+    let name: String
+    let value: String
 }

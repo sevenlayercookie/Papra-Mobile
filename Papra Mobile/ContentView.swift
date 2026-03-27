@@ -14,6 +14,7 @@ import UniformTypeIdentifiers
 import VisionKit
 
 struct ContentView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var model = AppModel()
     @State private var isImporterPresented = false
     @State private var isDocumentScannerPresented = false
@@ -23,6 +24,7 @@ struct ContentView: View {
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var selectedDocumentID: String?
     @State private var documentPendingDeletion: Document?
+    @State private var documentPendingRename: Document?
     @State private var tagEditorTarget: TagEditorTarget?
 
     var body: some View {
@@ -39,6 +41,7 @@ struct ContentView: View {
         }
         .task {
             await model.bootstrap()
+            await model.consumePendingShortcutFiles()
         }
         .fileImporter(
             isPresented: $isImporterPresented,
@@ -95,6 +98,11 @@ struct ContentView: View {
                 isSettingsPresented = false
             }
         }
+        .sheet(item: $documentPendingRename) { document in
+            RenameDocumentSheet(document: document) { newName in
+                await model.renameDocument(document, to: newName)
+            }
+        }
         .confirmationDialog(
             "Delete this document?",
             isPresented: Binding(
@@ -134,6 +142,12 @@ struct ContentView: View {
             Task {
                 await importPhoto(from: newItem)
                 selectedPhotoItem = nil
+            }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else { return }
+            Task {
+                await model.consumePendingShortcutFiles()
             }
         }
     }
@@ -255,6 +269,12 @@ struct ContentView: View {
                     DocumentRow(document: document)
                         .contextMenu {
                             Button {
+                                documentPendingRename = document
+                            } label: {
+                                Label("Rename", systemImage: "pencil")
+                            }
+
+                            Button {
                                 tagEditorTarget = TagEditorTarget(documentID: document.id)
                             } label: {
                                 Label("Manage Tags", systemImage: "tag")
@@ -290,11 +310,15 @@ struct ContentView: View {
         } else if let selectedDocument = model.selectedDocument {
             DocumentDetailView(
                 document: selectedDocument,
+                propertyDefinitions: model.propertyDefinitions,
                 onRefresh: {
                     await model.loadDocumentDetail(documentID: selectedDocument.id)
                 },
                 onManageTags: {
                     tagEditorTarget = TagEditorTarget(documentID: selectedDocument.id)
+                },
+                onRename: {
+                    documentPendingRename = selectedDocument
                 },
                 onDelete: {
                     documentPendingDeletion = selectedDocument
@@ -330,6 +354,7 @@ struct ContentView: View {
 
 private struct ConnectionGateView: View {
     @ObservedObject var model: AppModel
+    @State private var showsCustomHeaders = false
 
     var body: some View {
         NavigationStack {
@@ -356,6 +381,13 @@ private struct ConnectionGateView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .textFieldStyle(.roundedBorder)
+
+                    DisclosureGroup("Custom Headers", isExpanded: $showsCustomHeaders) {
+                        CustomHeadersEditor(headers: $model.customHeaders) {
+                            model.saveConfiguration()
+                        }
+                            .padding(.top, 8)
+                    }
 
                     Button {
                         Task {
@@ -389,6 +421,7 @@ private struct SettingsView: View {
     let onDisconnect: () -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @State private var showsCustomHeaders = false
 
     var body: some View {
         NavigationStack {
@@ -443,8 +476,20 @@ private struct SettingsView: View {
                         .autocorrectionDisabled()
                         .disabled(model.isConnected)
 
+                    DisclosureGroup("Custom Headers", isExpanded: $showsCustomHeaders) {
+                        CustomHeadersEditor(headers: $model.customHeaders) {
+                            model.saveConfiguration()
+                        }
+                            .padding(.top, 8)
+                    }
+
                     if let currentKeyInfo = model.currentKeyInfo {
                         Label(currentKeyInfo.name, systemImage: "key")
+                    }
+
+                    if let currentUser = model.currentUser {
+                        LabeledContent("Name", value: currentUser.name)
+                        LabeledContent("Email", value: currentUser.email)
                     }
 
                     if model.lastRefresh > .distantPast {
@@ -603,8 +648,10 @@ private struct DocumentRow: View {
 
 private struct DocumentDetailView: View {
     let document: Document
+    let propertyDefinitions: [PropertyDefinition]
     let onRefresh: () async -> Void
     let onManageTags: () -> Void
+    let onRename: () -> Void
     let onDelete: () -> Void
     let onPreview: () async -> Void
 
@@ -640,6 +687,12 @@ private struct DocumentDetailView: View {
                 }
 
                 Menu {
+                    Button {
+                        onRename()
+                    } label: {
+                        Label("Rename", systemImage: "pencil")
+                    }
+
                     Button {
                         onManageTags()
                     } label: {
@@ -683,6 +736,18 @@ private struct DocumentDetailView: View {
                     LabeledContent("Updated", value: updatedAt.formatted(date: .abbreviated, time: .shortened))
                 }
 
+                if !resolvedCustomProperties.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Custom Properties")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        ForEach(resolvedCustomProperties) { property in
+                            LabeledContent(property.displayName, value: property.displayValue)
+                        }
+                    }
+                }
+
                 if !document.tags.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Tags")
@@ -707,6 +772,122 @@ private struct DocumentDetailView: View {
                 Text("This document does not currently expose OCR or extracted text in the API response.")
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    private var resolvedCustomProperties: [ResolvedCustomProperty] {
+        document.customProperties
+            .map { property in
+                let definition = propertyDefinitions.first(where: { $0.key == property.key })
+                return ResolvedCustomProperty(
+                    key: property.key,
+                    displayName: property.name ?? definition?.name ?? property.key,
+                    displayValue: property.stringValue ?? "—",
+                    displayOrder: property.displayOrder ?? definition?.displayOrder ?? .max
+                )
+            }
+            .sorted { lhs, rhs in
+                if lhs.displayOrder == rhs.displayOrder {
+                    return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
+                }
+                return lhs.displayOrder < rhs.displayOrder
+            }
+    }
+}
+
+private struct ResolvedCustomProperty: Identifiable {
+    let key: String
+    let displayName: String
+    let displayValue: String
+    let displayOrder: Int
+
+    var id: String { key }
+}
+
+private struct CustomHeadersEditor: View {
+    @Binding var headers: [CustomHeader]
+    var onHeadersChanged: () -> Void = {}
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if headers.isEmpty {
+                Text("Optional headers are added to every request, including uploads.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            ForEach($headers) { $header in
+                VStack(alignment: .leading, spacing: 8) {
+                    TextField("Header Name", text: $header.name)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .textFieldStyle(.roundedBorder)
+
+                    TextField("Header Value", text: $header.value)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .textFieldStyle(.roundedBorder)
+
+                    Button("Remove Header", role: .destructive) {
+                        headers.removeAll { $0.id == header.id }
+                        onHeadersChanged()
+                    }
+                    .font(.caption)
+                    .buttonStyle(.borderless)
+                }
+                .padding(12)
+                .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+            }
+
+            Button {
+                headers.append(CustomHeader())
+                onHeadersChanged()
+            } label: {
+                Label("Add Header", systemImage: "plus")
+            }
+            .buttonStyle(.borderless)
+        }
+    }
+}
+
+private struct RenameDocumentSheet: View {
+    let document: Document
+    let onSave: (String) async -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var name: String
+
+    init(document: Document, onSave: @escaping (String) async -> Void) {
+        self.document = document
+        self.onSave = onSave
+        _name = State(initialValue: document.name)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("File Name") {
+                    TextField("Name", text: $name)
+                }
+            }
+            .navigationTitle("Rename File")
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Save") {
+                        Task {
+                            await onSave(name)
+                            dismiss()
+                        }
+                    }
+                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
             }
         }
     }
@@ -847,11 +1028,14 @@ private struct TagEditorSheet: View {
                                     description: tagDescription.isEmpty ? nil : tagDescription
                                 )
                             } else {
-                                await model.createTag(
+                                let createdTag = await model.createTag(
                                     name: tagName.trimmingCharacters(in: .whitespacesAndNewlines),
                                     color: normalizedHexColor(tagColor),
                                     description: tagDescription.isEmpty ? nil : tagDescription
                                 )
+                                if let document, let createdTag {
+                                    await model.setTag(createdTag, on: document, isApplied: true)
+                                }
                             }
                             resetForm()
                         }

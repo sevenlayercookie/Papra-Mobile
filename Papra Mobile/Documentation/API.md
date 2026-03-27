@@ -183,6 +183,36 @@ Get a document by its ID.
 - Required API key permissions: `documents:read`
 - Response (JSON)
   - `document`: The document.
+    - `id`: The document ID.
+    - `createdAt`: The creation timestamp.
+    - `updatedAt`: The last update timestamp.
+    - `organizationId`: The owning organization ID.
+    - `createdBy`: The user ID that created the document.
+    - `originalName`: The original uploaded filename.
+    - `originalSize`: The original file size in bytes.
+    - `originalSha256Hash`: The SHA-256 hash of the original file.
+    - `name`: The current display name of the document.
+    - `mimeType`: The document MIME type.
+    - `content`: The extracted OCR/text content.
+    - `documentDate`: The detected document date, if available.
+    - `deletedAt`: The deletion timestamp, if the document is deleted.
+    - `deletedBy`: The user ID that deleted the document, if applicable.
+    - `isDeleted`: Whether the document is deleted.
+    - `tags`: The tags currently applied to the document.
+      - `id`: The tag ID.
+      - `createdAt`: The tag creation timestamp.
+      - `updatedAt`: The tag update timestamp.
+      - `organizationId`: The owning organization ID.
+      - `name`: The display name of the tag.
+      - `normalizedName`: The normalized name used internally.
+      - `color`: The tag color in hex format.
+      - `description`: The tag description.
+    - `customProperties`: The custom metadata values applied to the document.
+      - `key`: The stable custom property key.
+      - `name`: The display name of the custom property.
+      - `type`: The property type such as `number`, `text`, or `date`.
+      - `displayOrder`: The sort order in metadata UIs.
+      - `value`: The current value for this document.
 
 ### Delete a document
 
@@ -228,6 +258,27 @@ Get the statistics (number of documents and total size) of the documents in the 
   - `organizationStats`: The organization documents statistics.
     - `documentsCount`: The total number of documents.
     - `documentsSize`: The total size of the documents.
+
+### List custom properties
+
+**GET** `/api/organizations/:organizationId/custom-properties`
+
+List the custom property definitions available for documents in the organization.
+
+- Required API key permissions: `documents:read`
+- Response (JSON)
+  - `propertyDefinitions`: The custom property definitions.
+    - `id`: The property definition ID.
+    - `createdAt`: The creation timestamp.
+    - `updatedAt`: The last update timestamp.
+    - `organizationId`: The owning organization ID.
+    - `name`: The display name used in the UI.
+    - `key`: The stable property key used in document payloads.
+    - `description`: The property description.
+    - `type`: The property type such as `number`, `text`, or `date`.
+    - `config`: Additional property configuration, if any.
+    - `displayOrder`: The sort order in metadata UIs.
+    - `options`: The configured option values for enumerated properties.
 
 ### Update a document
 
@@ -331,3 +382,20 @@ Enqueue a background task to apply a tagging rule to all existing documents in t
 - Required API key permissions: `tags:read` and `documents:update`
 - Response (JSON, HTTP 202)
   - `taskId`: The ID of the background task. You can use this to track the task's progress (task status retrieval coming in a future release).
+
+### Get current user
+
+**GET** `/api/users/me`
+
+Get the currently authenticated user.
+
+- Required API key permissions: authenticated session
+- Response (JSON)
+  - `user`: The current user.
+    - `permissions`: The granted application permissions for the user.
+    - `id`: The user ID.
+    - `email`: The user email address.
+    - `name`: The user display name.
+    - `createdAt`: The creation timestamp.
+    - `updatedAt`: The last update timestamp.
+    - `twoFactorEnabled`: Whether two-factor authentication is enabled.
