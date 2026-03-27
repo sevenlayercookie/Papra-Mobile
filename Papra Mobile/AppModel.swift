@@ -66,7 +66,7 @@ final class AppModel: ObservableObject {
     }
 
     static func normalizedDocumentName(_ name: String) -> String {
-        NSString(string: name).trimmingCharacters(in: .whitespacesAndNewlines)
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     func saveConfiguration() {
