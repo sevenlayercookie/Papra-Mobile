@@ -858,6 +858,10 @@ private struct RenameDocumentSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var name: String
 
+    private var normalizedName: String {
+        AppModel.normalizedDocumentName(name)
+    }
+
     init(document: Document, onSave: @escaping (String) async -> Void) {
         self.document = document
         self.onSave = onSave
@@ -881,12 +885,13 @@ private struct RenameDocumentSheet: View {
 
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Save") {
-                        Task {
-                            await onSave(name)
+                        let nameToSave = normalizedName
+                        Task { @MainActor in
+                            await onSave(nameToSave)
                             dismiss()
                         }
                     }
-                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(normalizedName.isEmpty)
                 }
             }
         }

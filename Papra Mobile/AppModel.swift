@@ -65,6 +65,10 @@ final class AppModel: ObservableObject {
         currentKeyInfo != nil
     }
 
+    static func normalizedDocumentName(_ name: String) -> String {
+        NSString(string: name).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     func saveConfiguration() {
         storedBaseURL = baseURL
         storedAPIToken = apiToken
@@ -262,7 +266,7 @@ final class AppModel: ObservableObject {
     func renameDocument(_ document: Document, to newName: String) async {
         guard let organizationID = selectedOrganizationID else { return }
 
-        let trimmedName = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedName = Self.normalizedDocumentName(newName)
         guard !trimmedName.isEmpty else {
             errorMessage = "Enter a file name."
             return

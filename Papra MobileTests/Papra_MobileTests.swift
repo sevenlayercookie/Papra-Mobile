@@ -146,4 +146,9 @@ struct Papra_MobileTests {
         #expect(error.errorDescription?.contains("OrganizationsResponse") == true)
         #expect(error.errorDescription?.contains("Missing key 'organizations'") == true)
     }
+
+    @Test func normalizedDocumentNameTrimsWhitespaceAndNewlines() {
+        #expect(AppModel.normalizedDocumentName("  Quarterly Report \n") == "Quarterly Report")
+        #expect(AppModel.normalizedDocumentName(" \n\t ") == "")
+    }
 }
