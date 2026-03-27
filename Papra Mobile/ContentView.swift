@@ -150,7 +150,7 @@ struct ContentView: View {
                 HStack(spacing: 10) {
                     PapraBrandMark(size: 28)
 
-                    Text("Papra")
+                    Text("Papra Mobile")
                         .font(.headline.weight(.semibold))
                 }
             }
@@ -379,7 +379,7 @@ private struct ConnectionGateView: View {
             .padding(24)
             .frame(maxWidth: 520, maxHeight: .infinity, alignment: .center)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .navigationTitle("Papra")
+            .navigationTitle("Papra Mobile")
         }
     }
 }
