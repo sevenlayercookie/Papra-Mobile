@@ -886,7 +886,7 @@ private struct RenameDocumentSheet: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Save") {
                         let nameToSave = normalizedName
-                        Task { @MainActor in
+                        Task {
                             await onSave(nameToSave)
                             dismiss()
                         }
